@@ -1,0 +1,75 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    
+    # Levantar una base de datos PostgreSQL real en la nube solo para que los tests pasen
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password_falsa_para_ci
+          POSTGRES_DB: practicadb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        cache-dependency-path: './backend/package-lock.json'
+    
+    - name: Install Dependencies
+      run: npm install
+    
+    - name: Create database schema for tests
+      env:
+        PGPASSWORD: password_falsa_para_ci
+      run: psql -h localhost -U postgres -d practicadb -f database.sql
+    
+    - name: Run Jest Tests
+      env:
+        DB_USER: postgres
+        DB_PASSWORD: password_falsa_para_ci
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: practicadb
+      run: npm test
+
+  frontend-build:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        cache-dependency-path: './frontend/package-lock.json'
+    - run: npm install
+    # - run: npx expo export 
